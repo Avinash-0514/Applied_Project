@@ -90,4 +90,10 @@ for raw_record in raw_dataset.take(1):
     example.ParseFromString(raw_record.numpy())
     feature_vals = example.features.feature['tmmn'].float_list.value
     print("tmmn length:", len(feature_vals))  # <- Check this number
+
+import glob
+
+print(glob.glob("/Volumes/StudyNProjects/UnitecFolder/Thesis_Project/WildFireDetection/Training_ds/*.tfrecord"))
+print(glob.glob("/Volumes/StudyNProjects/UnitecFolder/Thesis_Project/WildFireDetection/Testing_ds/*.tfrecord"))
+print(glob.glob("/Volumes/StudyNProjects/UnitecFolder/Thesis_Project/WildFireDetection/Validation_ds/*.tfrecord"))
     '''

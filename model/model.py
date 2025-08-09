@@ -3,8 +3,8 @@ from tensorflow.keras import layers, Model, Input, backend as K
 #from data.preprocessing import(get_mkcnn_dataset, get_dynamic_parser,dataset_split_function,input_features)
 from common import(input_features)
 
-def build_multi_kernel_cnn_model(loss_type='wbce'):
-    inp = Input(shape=(64,64, len(input_features)+1), name="mkc_input")
+def build_multi_kernel_cnn_model(num_input_channels,loss_type='wbce'):
+    inp = Input(shape=(64,64, num_input_channels), name="mkc_input")
     # three parallel conv paths
     c3 = layers.Conv2D(32, 3, padding='same', activation='relu')(inp)
     c5 = layers.Conv2D(32, 5, padding='same', activation='relu')(inp)

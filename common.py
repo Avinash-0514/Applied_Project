@@ -1,11 +1,17 @@
-#Dataset 
-training =''
-testing = ''
-validation =''
+import glob
+'''
+training = glob.glob("/Volumes/StudyNProjects/UnitecFolder/Thesis_Project/WildFireDetection/Training_ds/*.tfrecord")
+testing = glob.glob("/Volumes/StudyNProjects/UnitecFolder/Thesis_Project/WildFireDetection/Testing_ds/*.tfrecord")
+validation = glob.glob("/Volumes/StudyNProjects/UnitecFolder/Thesis_Project/WildFireDetection/Validation_ds/*.tfrecord")
+'''
+training = "/Volumes/StudyNProjects/UnitecFolder/Thesis_Project/WildFireDetection/Training_ds/*.tfrecord"
+testing = "/Volumes/StudyNProjects/UnitecFolder/Thesis_Project/WildFireDetection/Testing_ds/*.tfrecord"
+validation = "/Volumes/StudyNProjects/UnitecFolder/Thesis_Project/WildFireDetection/Evaluation_ds/*.tfrecord"
+
 
 #Batch Configuration
-BATCH_SIZE =0
-EPOCHS =0
+BATCH_SIZE =128
+EPOCHS =100
 
 # Input Features Names
 input_features = ['tmmn','NDVI','population','elevation','vs','pdsi','pr','tmmx','sph','th','erc']

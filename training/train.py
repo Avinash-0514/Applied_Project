@@ -5,7 +5,7 @@ from common import (EPOCHS)
 
 def train_model(model, train_ds, val_ds, name, feature_index):
         # Update the base directory for saving models and logs
-        base_save_dir = ""
+        base_save_dir = "/Volumes/StudyNProjects/UnitecFolder/Thesis_Project/WildFireDetection/BaseDir" # Change the Dir as per system
         model_save_path = os.path.join(base_save_dir, "models", name,feature_index)
         log_dir_path = os.path.join(base_save_dir, "logs", name,feature_index)
 
