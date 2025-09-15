@@ -24,6 +24,8 @@ def get_mkcnn_dataset(pattern_type, batch_size = BATCH_SIZE):
     dataset = dataset.prefetch(tf.data.AUTOTUNE)
     return dataset
 '''
+'''
+Old
 def get_mkcnn_dataset(pattern_type, batch_size=BATCH_SIZE, selected_features=None):
     if selected_features is None:
         raise ValueError("selected_features must be provided.")
@@ -31,6 +33,18 @@ def get_mkcnn_dataset(pattern_type, batch_size=BATCH_SIZE, selected_features=Non
     dataset = tf.data.Dataset.list_files(pattern_type)
     dataset = dataset.interleave(tf.data.TFRecordDataset, cycle_length=4)
     parse_function = get_dynamic_parser(selected_features)
+    dataset = dataset.map(parse_function, num_parallel_calls=tf.data.AUTOTUNE)
+    dataset = dataset.batch(batch_size)
+    dataset = dataset.prefetch(tf.data.AUTOTUNE)
+    return dataset
+'''
+def get_mkcnn_dataset(pattern_type,multi_input, batch_size=BATCH_SIZE,selected_features=None):
+    if selected_features is None:
+        raise ValueError("selected_features must be provided.")
+
+    dataset = tf.data.Dataset.list_files(pattern_type)
+    dataset = dataset.interleave(tf.data.TFRecordDataset, cycle_length=4)
+    parse_function = get_dynamic_parser(selected_features, multi_input=multi_input)
     dataset = dataset.map(parse_function, num_parallel_calls=tf.data.AUTOTUNE)
     dataset = dataset.batch(batch_size)
     dataset = dataset.prefetch(tf.data.AUTOTUNE)
@@ -62,6 +76,8 @@ def get_dynamic_parser(selected_features):
  
     return _mkcnn_parse_function_ensemble
 '''
+'''
+old
 def get_dynamic_parser(selected_features):
     def _mkcnn_parse_function_ensemble(example_proto):
         wildFire_features = selected_features + [prev_fire, curr_fire]
@@ -91,6 +107,53 @@ def get_dynamic_parser(selected_features):
     return _mkcnn_parse_function_ensemble
 
 '''
+def get_dynamic_parser(selected_features, multi_input=False, prev_fire="prev_fire", curr_fire="curr_fire"):
+    def _mkcnn_parse_function_ensemble(example_proto):
+
+        prev_fire = "PrevFireMask"
+        curr_fire = "FireMask"
+        # Add prev_fire and curr_fire to the feature set
+        wildFire_features = selected_features + [prev_fire, curr_fire]
+
+        # TFRecord feature description
+        feature_description = {
+            f: tf.io.FixedLenFeature([64, 64], tf.float32) for f in wildFire_features
+        }
+        parsed = tf.io.parse_single_example(example_proto, feature_description)
+
+        # Normalize previous fire mask
+        prev_fire_input = _normalise(parsed[prev_fire], prev_fire)
+        prev_fire_input = tf.expand_dims(prev_fire_input, -1)
+
+        # Process features
+        branch_inputs = []
+        for feat in selected_features:
+            norm_feat = _normalise(parsed[feat], feat)
+            feat_input = tf.expand_dims(norm_feat, -1)
+
+            # Each branch: feature + prev_fire
+            combined_input = tf.concat([feat_input, prev_fire_input], axis=-1)
+            branch_inputs.append(combined_input)
+
+        # Label (current fire mask)
+        label = _rescale(parsed[curr_fire], curr_fire)
+        label = tf.expand_dims(label, -1)
+
+        # Return depending on mode
+        if multi_input:
+            # Multiple inputs (tuple of tensors)
+            return tuple(branch_inputs), label
+        else:
+            # Single input (stack all feature branches into one tensor)
+            final_input = tf.concat(branch_inputs, axis=-1)
+            return final_input, label
+
+    return _mkcnn_parse_function_ensemble
+
+
+
+
+'''
 def dataset_split_function(training, testing, validation,batch_size = BATCH_SIZE, isFire = False):
     
     def _sep_fire_filter(tuple_input_values, label):
@@ -108,7 +171,7 @@ def dataset_split_function(training, testing, validation,batch_size = BATCH_SIZE
     testing_dataset = get_mkcnn_dataset(testing,batch_size=batch_size)
     return training_dataset, validation_dataset,testing_dataset
 '''
-def dataset_split_function(training, testing, validation, batch_size=BATCH_SIZE, isFire=False, selected_features=None):
+def dataset_split_function(training, testing, validation, batch_size,selected_features, multiple_input,isFire=False):
     if selected_features is None:
         raise ValueError("You must pass selected_features.")
 
@@ -116,8 +179,8 @@ def dataset_split_function(training, testing, validation, batch_size=BATCH_SIZE,
         cnt = tf.reduce_sum(tf.cast(label > 0.5, tf.int32))
         return cnt > 50
 
-    dataset_fire = get_mkcnn_dataset(training, batch_size=batch_size, selected_features=selected_features)
-    dataset_non_fire = get_mkcnn_dataset(training, batch_size=batch_size, selected_features=selected_features)
+    dataset_fire = get_mkcnn_dataset(training, multiple_input,batch_size=batch_size,selected_features=selected_features)
+    dataset_non_fire = get_mkcnn_dataset(training, multiple_input,batch_size=batch_size, selected_features=selected_features)
 
     if isFire:
         dataset_fire = dataset_fire.filter(_sep_fire_filter)
@@ -126,8 +189,8 @@ def dataset_split_function(training, testing, validation, batch_size=BATCH_SIZE,
     dataset_non_fire = dataset_non_fire.take(300 // batch_size)
 
     training_dataset = dataset_fire.concatenate(dataset_non_fire).shuffle(1000).repeat()
-    validation_dataset = get_mkcnn_dataset(validation, batch_size=batch_size, selected_features=selected_features)
-    testing_dataset = get_mkcnn_dataset(testing, batch_size=batch_size, selected_features=selected_features)
+    validation_dataset = get_mkcnn_dataset(validation, multiple_input,batch_size=batch_size, selected_features=selected_features)
+    testing_dataset = get_mkcnn_dataset(testing, multiple_input,batch_size=batch_size, selected_features=selected_features)
 
     return training_dataset, validation_dataset, testing_dataset
 

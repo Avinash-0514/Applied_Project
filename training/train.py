@@ -1,14 +1,26 @@
 import os
 import tensorflow as tf
 from tensorflow.keras import layers, Model
-from common import (EPOCHS)
+from common import (EPOCHS,all_feature_dir,combined_feature_dir,single_feature_dir)
 
-def train_model(model, train_ds, val_ds, name, feature_index):
+def train_model(model, train_ds, val_ds,model_type, name, feature_index =""):
         # Update the base directory for saving models and logs
-        base_save_dir = "/Volumes/StudyNProjects/UnitecFolder/Thesis_Project/WildFireDetection/BaseDir" # Change the Dir as per system
-        model_save_path = os.path.join(base_save_dir, "models", name,feature_index)
-        log_dir_path = os.path.join(base_save_dir, "logs", name,feature_index)
+        if model_type =="AllFeature":
+                
+            base_save_dir = all_feature_dir # Change the Dir as per system
+            model_save_path = os.path.join(base_save_dir, "models", name,feature_index)
+            log_dir_path = os.path.join(base_save_dir, "logs", name,feature_index)
 
+        elif model_type =="SingleFeature":
+
+            base_save_dir = single_feature_dir # Change the Dir as per system
+            model_save_path = os.path.join(base_save_dir, "models", name,feature_index)
+            log_dir_path = os.path.join(base_save_dir, "logs", name,feature_index)
+        else:
+            base_save_dir = combined_feature_dir # Change the Dir as per system
+            model_save_path = os.path.join(base_save_dir, "models", name,feature_index)
+            log_dir_path = os.path.join(base_save_dir, "logs", name,feature_index)
+             
         # Create directories if they don't exist
         os.makedirs(model_save_path, exist_ok=True)
         os.makedirs(log_dir_path, exist_ok=True)
