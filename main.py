@@ -10,6 +10,7 @@ from common import (input_features,BATCH_SIZE)
 def main ():
     # Get Layer & Filter data
     model_name = "MultiKernelCNN"
+    Isprev_feat_append_flag = bool(int(input("Enter the True(1) to Append prev_Feat with all feature else False(0)")))
     num_layers = int(input("Enter the Number of layers (eg., 1,2,3)"))
     base_filters = int(input("Enter the Base filters(eg., 32,64,128)"))
     isCustomModel = bool(int(input("Enter the True (1) or False (0) To train all feature")))
@@ -27,12 +28,14 @@ def main ():
             training, 
             validation,
             testing,
+            prev_feat_append_flag = Isprev_feat_append_flag,
             batch_size=BATCH_SIZE,
             multiple_input = False,
             selected_features = input_features
             )
         nn_model = build_multi_kernel_cnn_model(
-            num_input_channels = len(input_features)*2,
+            #num_input_channels = len(input_features)*2,
+            num_input_channels= len(input_features) * 2 if Isprev_feat_append_flag else len(input_features) + 1,
             layerCount = num_layers,
             filter_size = base_filters
             )
@@ -52,6 +55,7 @@ def main ():
                     training,
                     validation,
                     testing,
+                    prev_feat_append_flag = Isprev_feat_append_flag,
                     batch_size=BATCH_SIZE,
                     multiple_input = False,
                     selected_features= [feature_index]
@@ -75,26 +79,33 @@ def main ():
             # Custom feature based on the matrices
             x = list(enumerate(enum_feat,start=1))
             print(x)
+
             model_type = "CombinedFeature"
             enum_feat =('tmmn','NDVI','population','elevation','vs','pdsi','pr','tmmx','sph','th','erc')
+
             custom_features =[]
             x = list(enumerate(enum_feat,start=1))
             features = input("Enter the top features:")
             value = [int(d) for d in features]
+
             for i in value:
                 print(i)
                 custom_features.append(input_features[i-1])
             albinated_Feature = "-".join(custom_features)
+
+
             conv_train_ds,conv_val_ds,conv_test_ds = dataset_split_function(
                     training,
                     validation,
                     testing,
+                    prev_feat_append_flag = Isprev_feat_append_flag,
                     batch_size=BATCH_SIZE,
                     multiple_input = False,
                     selected_features=custom_features
                 )
             nn_model = build_multi_kernel_cnn_model(
-                    num_input_channels = len(custom_features)*2,
+                    #num_input_channels = len(custom_features)*2,
+                    num_input_channels= len(custom_features) * 2 if Isprev_feat_append_flag else len(custom_features) + 1,
                     layerCount = num_layers,
                     filter_size = base_filters
                 )

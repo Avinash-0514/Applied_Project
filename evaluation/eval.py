@@ -64,7 +64,7 @@ def plot_results(auc, precision, recall, accuracy, iou, pr_Auc,albinated_Feature
     plt.axis('off')
     plt.gca().set_aspect('equal')
     plt.show()
-
+'''
 def plot_radar_chart(auc, precision, recall, accuracy, iou, pr_Auc,albinated_Feature,model_name="Model"):
 
     # Extract metric names and values
@@ -98,5 +98,33 @@ def plot_radar_chart(auc, precision, recall, accuracy, iou, pr_Auc,albinated_Fea
     ax.legend(loc='upper right', bbox_to_anchor=(1.2, 1.1))
     
     plt.show()
+'''
 
+def plot_radar_chart(auc, precision, recall, accuracy, iou, pr_Auc,model_scores_dict,model_name="Model", title="Model Performance Comparison"):
+    labels = ['AUC', 'Precision', 'Recall', 'Accuracy', 'IoU', 'PR_Auc']
+    num_vars = len(labels)
+    angles = np.linspace(0, 2 * np.pi, num_vars, endpoint=False).tolist()
+    angles += angles[:1]  # complete the circle
+
+    # Create radar chart
+    fig, ax = plt.subplots(figsize=(8, 8), subplot_kw=dict(polar=True))
+
+    model_scores_dict[model_name] = [auc, precision, recall, accuracy, iou, pr_Auc]
+
+    # Plot each model
+    for model_name, scores in model_scores_dict.items():
+        scores = scores + scores[:1]  # close the polygon
+        ax.plot(angles, scores, linewidth=2, label=model_name)
+        ax.fill(angles, scores, alpha=0.25)
+
+    # Set axis labels
+    ax.set_xticks(angles[:-1])
+    ax.set_xticklabels(labels)
+    ax.set_ylim(0, 1)  # adjust if scores are not normalized to [0,1]
+
+    # Title and legend
+    ax.set_title(title, va='bottom')
+    ax.legend(loc='upper right', bbox_to_anchor=(1.3, 1.1))
+
+    plt.show()
 

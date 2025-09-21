@@ -38,13 +38,13 @@ def get_mkcnn_dataset(pattern_type, batch_size=BATCH_SIZE, selected_features=Non
     dataset = dataset.prefetch(tf.data.AUTOTUNE)
     return dataset
 '''
-def get_mkcnn_dataset(pattern_type,multi_input, batch_size=BATCH_SIZE,selected_features=None):
+def get_mkcnn_dataset(pattern_type,multi_input,prev_feat_append_flag, batch_size=BATCH_SIZE,selected_features=None):
     if selected_features is None:
         raise ValueError("selected_features must be provided.")
 
     dataset = tf.data.Dataset.list_files(pattern_type)
     dataset = dataset.interleave(tf.data.TFRecordDataset, cycle_length=4)
-    parse_function = get_dynamic_parser(selected_features, multi_input=multi_input)
+    parse_function = get_dynamic_parser(selected_features,prev_feat_append_flag, multi_input=multi_input)
     dataset = dataset.map(parse_function, num_parallel_calls=tf.data.AUTOTUNE)
     dataset = dataset.batch(batch_size)
     dataset = dataset.prefetch(tf.data.AUTOTUNE)
@@ -107,7 +107,7 @@ def get_dynamic_parser(selected_features):
     return _mkcnn_parse_function_ensemble
 
 '''
-def get_dynamic_parser(selected_features, multi_input=False, prev_fire="prev_fire", curr_fire="curr_fire"):
+def get_dynamic_parser(selected_features,prev_feat_append_flag, multi_input=False, prev_fire="prev_fire", curr_fire="curr_fire"):
     def _mkcnn_parse_function_ensemble(example_proto):
 
         prev_fire = "PrevFireMask"
@@ -127,13 +127,24 @@ def get_dynamic_parser(selected_features, multi_input=False, prev_fire="prev_fir
 
         # Process features
         branch_inputs = []
-        for feat in selected_features:
-            norm_feat = _normalise(parsed[feat], feat)
-            feat_input = tf.expand_dims(norm_feat, -1)
+        #prev_feat_append_flag = True
+        if prev_feat_append_flag:
 
-            # Each branch: feature + prev_fire
-            combined_input = tf.concat([feat_input, prev_fire_input], axis=-1)
-            branch_inputs.append(combined_input)
+            for feat in selected_features:
+                # Scenario 1: Concat Previous fire with every Feature branch(2* feature Channels)
+                norm_feat = _normalise(parsed[feat], feat)
+                feat_input = tf.expand_dims(norm_feat, -1)
+
+                # Each branch: feature + prev_fire
+                combined_input = tf.concat([feat_input, prev_fire_input], axis=-1)
+                branch_inputs.append(combined_input)
+        else:
+            for feat in selected_features:
+                # Scenario 2: keeping Previous Fire as a separate Branch(Feature + 1 Extra Branch)
+                norm_feat = _normalise(parsed[feat],feat)
+                feat_input = tf.expand_dims(norm_feat,-1)
+                branch_inputs.append(feat_input)
+            branch_inputs.append(prev_fire_input)
 
         # Label (current fire mask)
         label = _rescale(parsed[curr_fire], curr_fire)
@@ -171,7 +182,7 @@ def dataset_split_function(training, testing, validation,batch_size = BATCH_SIZE
     testing_dataset = get_mkcnn_dataset(testing,batch_size=batch_size)
     return training_dataset, validation_dataset,testing_dataset
 '''
-def dataset_split_function(training, testing, validation, batch_size,selected_features, multiple_input,isFire=False):
+def dataset_split_function(training, testing, validation,prev_feat_append_flag, batch_size,selected_features, multiple_input,isFire=False):
     if selected_features is None:
         raise ValueError("You must pass selected_features.")
 
@@ -179,8 +190,8 @@ def dataset_split_function(training, testing, validation, batch_size,selected_fe
         cnt = tf.reduce_sum(tf.cast(label > 0.5, tf.int32))
         return cnt > 50
 
-    dataset_fire = get_mkcnn_dataset(training, multiple_input,batch_size=batch_size,selected_features=selected_features)
-    dataset_non_fire = get_mkcnn_dataset(training, multiple_input,batch_size=batch_size, selected_features=selected_features)
+    dataset_fire = get_mkcnn_dataset(training, multiple_input,prev_feat_append_flag,batch_size=batch_size,selected_features=selected_features)
+    dataset_non_fire = get_mkcnn_dataset(training, multiple_input,prev_feat_append_flag,batch_size=batch_size, selected_features=selected_features)
 
     if isFire:
         dataset_fire = dataset_fire.filter(_sep_fire_filter)
@@ -189,8 +200,8 @@ def dataset_split_function(training, testing, validation, batch_size,selected_fe
     dataset_non_fire = dataset_non_fire.take(300 // batch_size)
 
     training_dataset = dataset_fire.concatenate(dataset_non_fire).shuffle(1000).repeat()
-    validation_dataset = get_mkcnn_dataset(validation, multiple_input,batch_size=batch_size, selected_features=selected_features)
-    testing_dataset = get_mkcnn_dataset(testing, multiple_input,batch_size=batch_size, selected_features=selected_features)
+    validation_dataset = get_mkcnn_dataset(validation, multiple_input,prev_feat_append_flag,batch_size=batch_size, selected_features=selected_features)
+    testing_dataset = get_mkcnn_dataset(testing, multiple_input,prev_feat_append_flag,batch_size=batch_size, selected_features=selected_features)
 
     return training_dataset, validation_dataset, testing_dataset
 

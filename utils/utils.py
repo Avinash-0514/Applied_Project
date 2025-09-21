@@ -8,7 +8,7 @@ def summarize_and_plot(model, name):
         print(f"Total Trainable Parameters: {param_count}")
 
         # Update the base directory for saving diagrams
-        base_save_dir = ""
+        base_save_dir = "/Volumes/StudyNProjects/UnitecFolder/Thesis_Project/WildFireDetection/architecture_diagrams"
         diagram_save_path = os.path.join(base_save_dir, "architecture_diagrams")
         os.makedirs(diagram_save_path, exist_ok=True) # Create directory
 
@@ -21,3 +21,4 @@ def summarize_and_plot(model, name):
             print(f"Could not save model diagram: {e}")
 
         return param_count
+
