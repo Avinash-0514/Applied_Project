@@ -1,0 +1,623 @@
+This is main.py 
+=======
+
+def main ():
+    # Get Layer & Filter data
+    model_name = "MultiKernelCNN"
+    Isprev_feat_append_flag = bool(int(input("Enter the True(1) to Append Prev_Fire_Mask with all feature else False(0)")))
+    num_layers = int(input("Enter the Number of layers (eg., 1,2,3)"))
+    base_filters = int(input("Enter the Base filters(eg., 32,64,128)"))
+    isCustomModel = bool(int(input("Enter the True (1) or False (0) To train all feature")))
+    enum_feat =('tmmn','NDVI','population','elevation','vs','pdsi','pr','tmmx','sph','th','erc')
+    if isCustomModel != True:
+        single_feature = bool(int(input("Enter the Ture(1) or False (0) To train Single feature")))
+        
+    model_type = ""
+
+    
+    if isCustomModel:
+        model_type = "AllFeature"
+        # Training with all features with the fire mask.
+        conv_train_ds, conv_val_ds, conv_test_ds = dataset_split_function(
+            training, 
+            validation,
+            testing,
+            prev_feat_append_flag = Isprev_feat_append_flag,
+            batch_size=BATCH_SIZE,
+            multiple_input = False,
+            selected_features = input_features
+            )
+        tf.keras.backend.clear_session()
+        nn_model = build_multi_kernel_cnn_model(
+            #num_input_channels = len(input_features)*2,
+            num_input_channels= len(input_features) * 2 if Isprev_feat_append_flag else len(input_features) + 1,
+            layerCount = num_layers,
+            filter_size = base_filters
+            )
+        #count_parameter = summarize_and_plot(nn_model, f"{model_name}_Combined")
+        #train_model(nn_model, conv_train_ds, conv_val_ds,model_type, f"{model_name}_Combined","All")
+        count_parameter = summarize_and_plot(nn_model, f"{model_name}_Combined")
+        train_model(nn_model, conv_train_ds, conv_val_ds,model_type, f"{model_name}_Combined","All")
+        matrics = evaluate_model(nn_model, conv_test_ds, count_parameter)
+        print("\nFinal Results for All Combined Features Model: {matrics}")
+    else:
+        if single_feature:
+            model_type ="SingleFeature"
+            all_results ={}
+            #Training with single feature with Fire mask
+            for feature_index in input_features:
+                conv_train_ds, conv_val_ds,conv_test_ds = dataset_split_function(
+                    training,
+                    validation,
+                    testing,
+                    prev_feat_append_flag = Isprev_feat_append_flag,
+                    batch_size=BATCH_SIZE,
+                    multiple_input = False,
+                    selected_features= [feature_index]
+
+                )
+                tf.keras.backend.clear_session()
+                nn_model = build_multi_kernel_cnn_model(
+                    num_input_channels = 2,
+                    layerCount = num_layers,
+                    filter_size = base_filters
+                    )
+                #count_parameter = summarize_and_plot(nn_model,f"{model_name}_Single")
+                #train_model(nn_model, conv_train_ds, conv_val_ds,model_type, f"{model_name}_Single","Single")
+                count_parameter = summarize_and_plot(nn_model,f"{feature_index}_Single")
+                train_model(nn_model, conv_train_ds, conv_val_ds,model_type, f"{feature_index}_Single","Single")
+                all_results[f"{model_name}_F{feature_index}"] = evaluate_model(nn_model, conv_test_ds, count_parameter)
+            
+            print("\nFinal Results for all single-feature models:")
+            for name, metrics in all_results.items():
+                print(f"{name}: {metrics}")
+        else:
+            # Custom feature based on the matrices
+            x = list(enumerate(enum_feat,start=1))
+            print(x)
+
+            model_type = "CombinedFeature"
+            enum_feat =('tmmn','NDVI','population','elevation','vs','pdsi','pr','tmmx','sph','th','erc')
+
+            custom_features =[]
+            x = list(enumerate(enum_feat,start=1))
+            features = input("Enter the top features:")
+            value = [int(d) for d in features]
+
+            for i in value:
+                print(i)
+                custom_features.append(input_features[i-1])
+            albinated_Feature = "-".join(custom_features)
+
+
+            conv_train_ds,conv_val_ds,conv_test_ds = dataset_split_function(
+                    training,
+                    validation,
+                    testing,
+                    prev_feat_append_flag = Isprev_feat_append_flag,
+                    batch_size=BATCH_SIZE,
+                    multiple_input = False,
+                    selected_features=custom_features
+                )
+            tf.keras.backend.clear_session()
+            nn_model = build_multi_kernel_cnn_model(
+                    #num_input_channels = len(custom_features)*2,
+                    num_input_channels= len(custom_features) * 2 if Isprev_feat_append_flag else len(custom_features) + 1,
+                    layerCount = num_layers,
+                    filter_size = base_filters
+                )
+            #count_parameter = summarize_and_plot(nn_model,f"{model_name}_Custom")
+            #train_model(nn_model, conv_train_ds, conv_val_ds,model_type, f"{model_name}_Custom","Combined")
+            count_parameter = summarize_and_plot(nn_model,f"{model_name}_Custom")
+            train_model(nn_model, conv_train_ds, conv_val_ds,model_type, f"{albinated_Feature}_Custom","Combined")
+            matrics = evaluate_model(nn_model, conv_test_ds, albinated_Feature,count_parameter) 
+            print("\nFinal Results for All Combined Features Model: {matrics}")   
+            
+if __name__ == '__main__':
+    main()
+
+=======
+This is common.py 
+===
+#Batch Configuration
+BATCH_SIZE =8
+EPOCHS = 100
+
+# Input Features Names
+input_features = ['tmmn','NDVI','population','elevation','vs','pdsi','pr','tmmx','sph','th','erc']
+prev_fire = 'PrevFireMask'
+curr_fire = 'FireMask'
+selected_features = ''
+
+wildfire_stats = {
+    'tmmn': (-444.693, 716.6276, 281.8673, 18.0986),
+    'NDVI': (-9567.0, 9966.0, 5297.4717, 2186.9038),
+    'FireMask': (-1.0, 1.0, -0.0128, 0.1868),
+    'population': (0.0, 27103.6055, 29.8874, 214.3112),
+    'elevation': (-45.0, 4203.0, 904.5699, 846.5071),
+    'vs': (-82.6531, 103.2201, 3.6543, 1.3117),
+    'pdsi': (-152.9079, 80.9965, -0.74, 2.4769),
+    'pr': (-167.4483, 136.8156, 0.3348, 1.5888),
+    'tmmx': (0.0, 1229.8488, 297.742, 19.0823),
+    'sph': (-0.129, 0.0855, 0.0065, 0.0037),
+    'th': (-505870.0625, 37735.6289, 154.127, 3163.1426),
+    'PrevFireMask': (-1.0, 1.0, -0.0029, 0.1408),
+    'erc': (-1196.0886, 2470.8823, 53.6251, 25.2632)
+}
+
+
+# Directory
+all_feature_dir = "/Volumes/StudyNProjects/UnitecFolder/Thesis_Project/WildFireDetection/All_Feature_Model"
+single_feature_dir ="/Volumes/StudyNProjects/UnitecFolder/Thesis_Project/WildFireDetection/Single_Feature_Model"
+combined_feature_dir ="/Volumes/StudyNProjects/UnitecFolder/Thesis_Project/WildFireDetection/Combine_Feature_Model"
+======
+ Preprocessing.py 
+
+
+import tensorflow as tf
+from common import (prev_fire,prev_fire,curr_fire,wildfire_stats,BATCH_SIZE)
+# Normalisation Function and Rescaling functions
+
+def _normalise(x,key):
+    minimum_val, maximum_val, mean, standard_dev = wildfire_stats[key]
+    x = tf.clip_by_value(x,minimum_val, maximum_val)
+    return (x-mean)/standard_dev
+
+def _rescale(x, key):
+    minimum_val, maximum_val, *_ = wildfire_stats[key]
+    x = tf.clip_by_value(x, minimum_val, maximum_val)
+    return (x - minimum_val) / (maximum_val - minimum_val)
+
+def _rescale_mask(x):
+    x=tf.cast(x>0, tf.float32)
+    return x
+
+
+# Dataset preprocessing functions
+def get_mkcnn_dataset(pattern_type,multi_input,prev_feat_append_flag, batch_size=BATCH_SIZE,selected_features=None):
+    if selected_features is None:
+        raise ValueError("selected_features must be provided.")
+
+    dataset = tf.data.Dataset.list_files(pattern_type)
+    dataset = dataset.interleave(tf.data.TFRecordDataset, cycle_length=4)
+    parse_function = get_dynamic_parser(selected_features,prev_feat_append_flag, multi_input=multi_input)
+    dataset = dataset.map(parse_function, num_parallel_calls=tf.data.AUTOTUNE)
+    dataset = dataset.batch(batch_size)
+    dataset = dataset.prefetch(tf.data.AUTOTUNE)
+    return dataset
+
+
+def get_dynamic_parser(selected_features,prev_feat_append_flag, multi_input=False, prev_fire="prev_fire", curr_fire="curr_fire"):
+    def _mkcnn_parse_function_ensemble(example_proto):
+
+        prev_fire = "PrevFireMask"
+        curr_fire = "FireMask"
+        # Add prev_fire and curr_fire to the feature set
+        wildFire_features = selected_features + [prev_fire, curr_fire]
+
+        # TFRecord feature description
+        feature_description = {
+            f: tf.io.FixedLenFeature([64, 64], tf.float32) for f in wildFire_features
+        }
+        parsed = tf.io.parse_single_example(example_proto, feature_description)
+
+        # Normalize previous fire mask
+        #prev_fire_input = _normalise(parsed[prev_fire], prev_fire)
+        #prev_fire_input = tf.expand_dims(prev_fire_input, -1)
+        # Rescaling prev fire mask
+        prev_fire_input = _rescale_mask(parsed[prev_fire])
+        prev_fire_input = tf.expand_dims(prev_fire_input, -1)
+        # Process features
+        branch_inputs = []
+        #prev_feat_append_flag = True
+        if prev_feat_append_flag:
+
+            for feat in selected_features:
+                # Scenario 1: Concat Previous fire with every Feature branch(2* feature Channels)
+                norm_feat = _normalise(parsed[feat], feat)
+                feat_input = tf.expand_dims(norm_feat, -1)
+
+                # Each branch: feature + prev_fire
+                combined_input = tf.concat([feat_input, prev_fire_input], axis=-1)
+                branch_inputs.append(combined_input)
+        else:
+            for feat in selected_features:
+                # Scenario 2: keeping Previous Fire as a separate Branch(Feature + 1 Extra Branch)
+                norm_feat = _normalise(parsed[feat],feat)
+                feat_input = tf.expand_dims(norm_feat,-1)
+                branch_inputs.append(feat_input)
+            branch_inputs.append(prev_fire_input)
+
+        # Label (current fire mask)
+        #label = _rescale(parsed[curr_fire], curr_fire)
+        label = _rescale_mask(parsed[curr_fire])
+        label = tf.expand_dims(label, -1)
+
+        # Return depending on mode
+        if multi_input:
+            # Multiple inputs (tuple of tensors)
+            return tuple(branch_inputs), label
+        else:
+            # Single input (stack all feature branches into one tensor)
+            final_input = tf.concat(branch_inputs, axis=-1)
+            return final_input, label
+
+    return _mkcnn_parse_function_ensemble
+
+
+
+
+
+def dataset_split_function(training, testing, validation,prev_feat_append_flag, batch_size,selected_features, multiple_input,isFire=False):
+    if selected_features is None:
+        raise ValueError("You must pass selected_features.")
+
+    def _sep_fire_filter(inputs, label):
+        cnt = tf.reduce_sum(tf.cast(label > 0.5, tf.int32))
+        return cnt > 50
+
+    dataset_fire = get_mkcnn_dataset(training, multiple_input,prev_feat_append_flag,batch_size=batch_size,selected_features=selected_features)
+    dataset_non_fire = get_mkcnn_dataset(training, multiple_input,prev_feat_append_flag,batch_size=batch_size, selected_features=selected_features)
+
+    if isFire:
+        dataset_fire = dataset_fire.filter(_sep_fire_filter)
+    '''
+     {previous version since model cannot find the fire in this below segment(700) so increasing it..
+    dataset_fire = dataset_fire.take(700 // batch_size)
+    dataset_non_fire = dataset_non_fire.take(300 // batch_size)
+    '''
+    dataset_fire = dataset_fire.take(1400//batch_size) # newer version to predict more fire.
+    dataset_fire = dataset_fire.repeat(2)
+    dataset_non_fire = dataset_non_fire.take(300 // batch_size)
+        #  Define augmentation (only for training set)
+    data_augmentation = tf.keras.Sequential([
+        tf.keras.layers.RandomFlip("horizontal_and_vertical"),
+        tf.keras.layers.RandomRotation(0.3),
+        tf.keras.layers.RandomZoom(0.3),
+        tf.keras.layers.RandomContrast(0.3),
+        tf.keras.layers.RandomBrightness(factor = 0.2) # Added brightness for fire variability
+    ])
+
+     # training_dataset = dataset_fire.concatenate(dataset_non_fire).shuffle(1000).repeat()
+    training_dataset = dataset_fire.concatenate(dataset_non_fire).shuffle(1000)
+
+        #  Apply augmentation before batching
+    training_dataset = training_dataset.map(
+        lambda x, y: (data_augmentation(x, training=True), y),
+        num_parallel_calls=tf.data.AUTOTUNE
+    )
+    validation_dataset = get_mkcnn_dataset(validation, multiple_input,prev_feat_append_flag,batch_size=batch_size, selected_features=selected_features)
+    testing_dataset = get_mkcnn_dataset(testing, multiple_input,prev_feat_append_flag,batch_size=batch_size, selected_features=selected_features)
+
+    return training_dataset, validation_dataset, testing_dataset
+
+
+========
+Model.py 
+
+
+    inp = Input(shape=(64, 64, num_input_channels), name="mkc_input")
+    x = inp
+    encoder_outputs = []
+
+    # Encoder: multi-kernel convs + maxpool
+    for layer_idx in range(layerCount):
+        filters = filter_size * (2**layer_idx)
+        convs = [layers.Conv2D(filters, k, padding='same', activation='relu')(x) for k in kernel_sizes]
+        x = layers.Concatenate(name=f"concat_L{layer_idx+1}")(convs)
+        x = layers.BatchNormalization()(x)
+        encoder_outputs.append(x)
+        x = layers.MaxPooling2D(name=f"pool_L{layer_idx+1}")(x)
+
+    # Bottleneck
+    filters = filter_size * (2**layerCount)
+    # x = layers.Conv2D(filters, 3, padding='same', activation='relu', name="bottleneck")(x)
+    x = layers.Conv2D(filters, 3, padding='same', activation='relu', name="bottleneck",
+                      kernel_regularizer=regularizers.l2(1e-4))(x)
+    x = layers.BatchNormalization()(x)
+    #x = layers.Dropout(0.3)(x) previous version
+    #x = layers.Dropout(0.4)(x)
+    x= layers.Dropout(0.5)(x)
+    # Decoder: progressive upsampling with skip connections
+    for idx in reversed(range(layerCount)):
+        x = layers.UpSampling2D(size=(2, 2), name=f"upsample_L{idx+1}")(x)
+        x = layers.Concatenate(name=f"skip_concat_L{idx+1}")([x, encoder_outputs[idx]])
+        x = layers.Conv2D(filter_size * (2**idx), 3, padding='same', activation='relu', name=f"decoder_conv_L{idx+1}")(x)
+        x = layers.BatchNormalization()(x)
+        #x = layers.Dropout(0.3)(x) # Added dropoutlayer becasue for the improvement in the decoder
+        x=layers.Dropout(0.5)(x)
+
+    # Final refinement
+    #x = layers.Conv2D(filter_size, 3, padding='same', activation='relu', name="refine")(x)
+    x = layers.Conv2D(filter_size, 3, padding='same', activation='relu',
+                      kernel_regularizer=regularizers.l2(1e-4), name="refine")(x)
+    x = layers.BatchNormalization()(x)
+    x = layers.Dropout(0.3)(x)
+    out = layers.Conv2D(1, 1, activation='sigmoid', name="mask_output")(x)
+
+    model = Model(inp, out, name="MKCNN_Improved")
+
+    # Optimizer
+    #optimizer = tf.keras.optimizers.Adam(learning_rate=1e-4) --> Previous version
+    optimizer = tfa.optimizers.AdamW(learning_rate=1e-4, weight_decay=1e-5)
+
+    model.compile(
+        optimizer=optimizer,
+        loss=combined_loss,
+        metrics=[
+            tf.keras.metrics.AUC(curve="ROC", name="roc_auc"),
+            tf.keras.metrics.Precision(name="precision"),
+            tf.keras.metrics.Recall(name="recall"),
+            tf.keras.metrics.BinaryAccuracy(name="accuracy"),
+            tf.keras.metrics.AUC(curve="PR", name="pr_auc"),
+            iou_metric
+        ]
+    )
+
+    return model
+
+
+# IoU metric
+def iou_metric(y_true, y_pred, smooth=1e-6):
+    y_true = tf.cast(tf.reshape(y_true, [-1]), tf.float32)
+    y_pred = tf.cast(tf.reshape(y_pred, [-1]), tf.float32)
+    y_pred = tf.round(y_pred)
+    inter = tf.reduce_sum(y_true * y_pred)
+    union = tf.reduce_sum(y_true) + tf.reduce_sum(y_pred) - inter
+    return (inter + smooth) / (union + smooth)
+
+def weighted_bce(y_true, y_pred, pos_weight=50.0, neg_weight=1.0):
+    y_true = tf.reshape(y_true, tf.shape(y_pred))
+    y_pred = tf.clip_by_value(y_pred, 1e-7, 1 - 1e-7)
+    bce = K.binary_crossentropy(y_true, y_pred)
+   # weights = y_true * pos_weight + (1.0 - y_true) * neg_weight  --> Previous version
+    weights = 1 + (pos_weight - 1) * y_true
+    return tf.reduce_mean(bce * weights)
+
+def focal_loss(gamma=2.0):
+    def loss(y_true, y_pred):
+        y_true = tf.reshape(y_true, tf.shape(y_pred))
+        y_pred = tf.clip_by_value(y_pred, 1e-7, 1 - 1e-7)
+        return tf.reduce_mean(-(y_true * (1 - y_pred) ** gamma * tf.math.log(y_pred) +
+                                 (1 - y_true) * y_pred ** gamma * tf.math.log(1 - y_pred)))
+    return loss
+
+def dice_loss(y_true, y_pred, smooth=1e-6):
+    y_true = tf.reshape(y_true, [-1])
+    y_pred = tf.reshape(y_pred, [-1])
+    intersection = tf.reduce_sum(y_true * y_pred)
+    return 1 - (2. * intersection + smooth) / (tf.reduce_sum(y_true) + tf.reduce_sum(y_pred) + smooth)
+def combined_loss(y_true, y_pred):
+    return 0.4 * focal_loss(gamma=2.0)(y_true, y_pred) + 0.6 * dice_loss(y_true, y_pred)
+=====++===
+Training.py 
+
+def train_model(model, train_ds, val_ds, model_type, name, feature_index=""):
+    import os
+    from common import all_feature_dir, single_feature_dir, combined_feature_dir, EPOCHS
+
+    # Base directory selection
+    if model_type == "AllFeature":
+        base_save_dir = all_feature_dir
+    elif model_type == "SingleFeature":
+        base_save_dir = single_feature_dir
+    else:
+        base_save_dir = combined_feature_dir
+
+    model_save_path = os.path.join(base_save_dir, "models", name, feature_index)
+    log_dir_path = os.path.join(base_save_dir, "logs", name, feature_index)
+
+    # Create directories if they don't exist
+    os.makedirs(model_save_path, exist_ok=True)
+    os.makedirs(log_dir_path, exist_ok=True)
+
+    callbacks = [
+        tf.keras.callbacks.ModelCheckpoint(
+            filepath=os.path.join(model_save_path, "best_model.keras"),
+            save_best_only=True,
+            monitor="val_iou_metric",  # monitor IoU
+            mode="max",                # higher IoU is better
+            verbose=1
+        ),
+        tf.keras.callbacks.EarlyStopping(
+            #patience=10, Previous version
+            patience = 20,
+            monitor="val_iou_metric",
+            mode="max",                # higher IoU is better
+            restore_best_weights=True,
+            verbose=1
+        ),
+        tf.keras.callbacks.TensorBoard(log_dir=log_dir_path)
+    ]
+
+    try:
+        history = model.fit(
+            train_ds,
+            validation_data=val_ds,
+            epochs=EPOCHS,
+            #steps_per_epoch=406,       # number of batches per epoch
+            #validation_steps=87,
+            callbacks=callbacks,
+            verbose = 1
+        )
+    except OSError as e:
+        if "zlibwapi.dll" in str(e) or "pydot" in str(e):
+            print("Warning: Ignoring zlib/pydot DLL error and continuing training...")
+            history = model.fit(
+                train_ds,
+                validation_data=val_ds,
+                epochs=EPOCHS,
+                callbacks=[]  # Skip callbacks if they cause DLL issues
+            )
+        else:
+            raise
+
+    return history
+===========
+Eval.py 
+
+def evaluate_model(model, val_ds, test_ds, albinated_Feature, param_count=None):
+    import cv2
+    import numpy as np
+    import tensorflow as tf
+
+    # --- Step 1: Threshold tuning on validation set ---
+    best_threshold = 0.3
+    best_iou = 0
+
+    for t in np.arange(0.3, 0.61, 0.05):
+        ious = []
+        for val_image, val_mask in val_ds.take(5):  # Use a few batches
+            pred_probs = model.predict(val_image)
+            pred_mask = (pred_probs > t).astype(np.uint8)
+            iou_score = iou_metric(val_mask, pred_mask).numpy()
+            ious.append(iou_score)
+        mean_iou = np.mean(ious)
+        if mean_iou > best_iou:
+            best_iou = mean_iou
+            best_threshold = t
+
+    print(f"Optimal threshold based on validation set: {best_threshold:.2f} (IoU: {best_iou:.4f})")
+
+    # --- Step 2: Evaluate on test set ---
+    loss, auc, precision, recall, accuracy, iou, pr_Auc = model.evaluate(test_ds, steps=5)
+    print("Test Evaluation Metrics:")
+    print(f"Loss: {loss:.4f}")
+    print(f"AUC: {auc:.4f}")
+    print(f"Precision: {precision:.4f}")
+    print(f"Recall: {recall:.4f}")
+    print(f"Accuracy: {accuracy:.4f}")
+    print(f"IoU: {iou:.4f}")
+    print(f"PR-AUC: {pr_Auc:.4f}")
+
+    # Plot standard metrics
+    plot_results(auc, precision, recall, accuracy, iou, pr_Auc, albinated_Feature)
+    plot_radar_chart(auc, precision, recall, accuracy, iou, pr_Auc, albinated_Feature)
+
+    if param_count:
+        print(f"Model Size: {param_count / (1024 ** 2):.2f} MB")
+
+    # --- Step 3: Prediction example with post-processing ---
+    for test_image, true_mask in test_ds.take(1):  # Take 1 batch
+        pred_probs = model.predict(test_image)
+        pred_mask = (pred_probs > best_threshold).astype(np.uint8)
+
+        # Post-processing: remove small false positives
+        for i in range(pred_mask.shape[0]):
+            pred_mask[i, :, :, 0] = cv2.morphologyEx(
+                pred_mask[i, :, :, 0],
+                cv2.MORPH_OPEN,
+                np.ones((3, 3), np.uint8)
+            )
+
+        # Visualize one example
+        visualize_prediction(test_image[0], true_mask[0], pred_mask[0])
+
+    return {
+        "loss": loss,
+        "auc": auc,
+        "precision": precision,
+        "recall": recall,
+        "accuracy": accuracy,
+        "iou": iou,
+        "best_threshold": best_threshold,
+        "params": param_count
+    }
+
+
+def plot_results(auc, precision, recall, accuracy, iou, pr_Auc,albinated_Feature):
+
+    proportions = [auc, precision, recall, accuracy, iou, pr_Auc]
+    labels = ['AUC', 'Precision', 'Recall', 'Accuracy', 'IoU', 'PR_Auc']
+    N = len(proportions)
+
+    # Extend proportions for triangulation
+    proportions = np.append(proportions, 1)
+    theta = np.linspace(0, 2 * np.pi, N, endpoint=False)
+    x = np.append(np.sin(theta), 0)
+    y = np.append(np.cos(theta), 0)
+
+    # Triangles for polygon
+    triangles = [[N, i, (i + 1) % N] for i in range(N)]
+    triang_backgr = tri.Triangulation(x, y, triangles)
+    triang_foregr = tri.Triangulation(x * proportions, y * proportions, triangles)
+
+    # Colors
+    cmap = plt.cm.rainbow_r
+    colors = np.linspace(0, 1, N + 1)
+
+    # Plot
+    plt.tripcolor(triang_backgr, colors, cmap=cmap, shading='gouraud', alpha=0.4)
+    plt.tripcolor(triang_foregr, colors, cmap=cmap, shading='gouraud', alpha=0.8)
+    plt.triplot(triang_backgr, color='white', lw=2)
+
+    # Add labels + values
+    for label, value, xi, yi in zip(labels, proportions[:-1], x, y):
+        plt.text(
+            xi * 1.15, yi * 1.15,
+            f"{label}\n{value:.2f}",  # label + value on 2 lines
+            ha='left' if xi > 0.1 else 'right' if xi < -0.1 else 'center',
+            va='bottom' if yi > 0.1 else 'top' if yi < -0.1 else 'center',
+            fontsize=10, fontweight='bold'
+        )
+    plt.title(f" {albinated_Feature}", size=14, y=1.1)
+    plt.axis('off')
+    plt.gca().set_aspect('equal')
+    plt.show()
+
+
+def plot_radar_chart(auc, precision, recall, accuracy, iou, pr_Auc,model_name="Model", title="Model Performance Comparison"):
+    labels = ['AUC', 'Precision', 'Recall', 'Accuracy', 'IoU', 'PR_Auc']
+    num_vars = len(labels)
+    angles = np.linspace(0, 2 * np.pi, num_vars, endpoint=False).tolist()
+    angles += angles[:1]  # complete the circle
+
+    # Create radar chart
+    fig, ax = plt.subplots(figsize=(8, 8), subplot_kw=dict(polar=True))
+    model_scores_dict = {}
+    model_scores_dict[model_name] = [auc, precision, recall, accuracy, iou, pr_Auc]
+
+    # Plot each model
+    for model_name, scores in model_scores_dict.items():
+        scores = scores + scores[:1]  # close the polygon
+        ax.plot(angles, scores, linewidth=2, label=model_name)
+        ax.fill(angles, scores, alpha=0.25)
+
+    # Set axis labels
+    ax.set_xticks(angles[:-1])
+    ax.set_xticklabels(labels)
+    ax.set_ylim(0, 1)  # adjust if scores are not normalized to [0,1]
+
+    # Title and legend
+    ax.set_title(title, va='bottom')
+    ax.legend(loc='upper right', bbox_to_anchor=(1.3, 1.1))
+
+    plt.show()
+
+
+def visualize_prediction(image, true_mask, pred_mask):
+    """
+    Display input image, ground truth mask, and predicted mask side by side.
+    """
+    plt.figure(figsize=(12, 4))
+
+    # Image
+    plt.subplot(1, 3, 1)
+    plt.imshow(tf.squeeze(image), cmap="gray")
+    plt.title("Input Image")
+    plt.axis("off")
+
+    # Ground Truth
+    plt.subplot(1, 3, 2)
+    plt.imshow(tf.squeeze(true_mask), cmap="gray")
+    plt.title("Ground Truth Mask")
+    plt.axis("off")
+
+    # Prediction
+    plt.subplot(1, 3, 3)
+    plt.imshow(tf.squeeze(pred_mask), cmap="gray")
+    plt.title("Predicted Mask")
+    plt.axis("off")
+
+    plt.show()
+=======
